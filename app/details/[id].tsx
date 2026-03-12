@@ -1,133 +1,244 @@
-import React, { useRef, useMemo, useCallback } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Dimensions, Pressable } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Image } from 'expo-image';
-import PagerView from 'react-native-pager-view';
-import BottomSheet from '@gorhom/bottom-sheet';
-import { ArrowLeft, Download, Share2, Heart, Box, Image as ImageIcon, Lock, Copy, Save } from 'lucide-react-native';
+import BottomSheet from "@gorhom/bottom-sheet";
+import { Image } from "expo-image";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  ActivityIndicator,
+  Dimensions,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import PagerView from "react-native-pager-view";
 
-const { width } = Dimensions.get('window');
+import { ActionRow } from "@/src/components/components/ActionRow";
+import { DotIndicator } from "@/src/components/components/DotIndicator";
+import { ProgressOverlay } from "@/src/components/components/ProgressOverlay";
+import { Toast } from "@/src/components/components/Toast";
+import { TopNav } from "@/src/components/components/TopNav";
+import { WallpaperBottomSheet } from "@/src/components/components/WallpaperBottomSheet";
+import { useSaveToGallery } from "@/src/hooks/useSaveToGallery";
+import { useSetWallpaper } from "@/src/hooks/useSetWallpaper";
+import { useShareWallpaper } from "@/src/hooks/useShareWallpaper";
+import { useToast } from "@/src/hooks/useToast";
+import { useWallpaperStore } from "@/src/store/wallpaperStore";
 
-interface WallpaperItem {
-  id: string;
-  url: string;
-  category: string;
-}
+const { width, height } = Dimensions.get("window");
 
 export default function DetailsScreen() {
-  const { id, allWallpapers } = useLocalSearchParams<{ id: string; allWallpapers: string }>();
+  const params = useLocalSearchParams<{
+    id: string;
+    source?: string;
+    url?: string;
+    thumbnail?: string;
+    photographer?: string;
+    alt?: string;
+  }>();
+
+  const { id, source, url, thumbnail, photographer, alt } = params;
   const router = useRouter();
-  
-  // Parse the wallpapers list
-  const wallpaperList: WallpaperItem[] = useMemo(() => {
-    return allWallpapers ? JSON.parse(allWallpapers) : [];
-  }, [allWallpapers]);
 
-  // Find the index of the image clicked on the Home screen
+  const homeWallpapers = useWallpaperStore((s) => s.wallpapers);
+  const searchResults = useWallpaperStore((s) => s.searchResults);
+  const favorites = useWallpaperStore((s) => s.favorites);
+  const toggleFavorite = useWallpaperStore((s) => s.toggleFavorite);
+
+  // ✅ Pick list based on source param
+  const storeList = source === "search" ? searchResults : homeWallpapers;
+
+  // ✅ Fallback: if store is empty or item not found, build a single-item list from params
+  const wallpapers = useMemo(() => {
+    const found = storeList.find((w) => w.id.toString() === id?.toString());
+    if (found) return storeList;
+
+    // Store not ready yet — use URL params directly as fallback
+    if (url) {
+      return [
+        {
+          id: id ?? "",
+          url: decodeURIComponent(url),
+          thumbnail: thumbnail ? decodeURIComponent(thumbnail) : undefined,
+          photographer: photographer
+            ? decodeURIComponent(photographer)
+            : undefined,
+          alt: alt ? decodeURIComponent(alt) : undefined,
+        },
+      ];
+    }
+
+    return storeList;
+  }, [storeList, id, url, thumbnail, photographer, alt]);
+
   const initialIndex = useMemo(() => {
-    return wallpaperList.findIndex(item => item.id === id);
-  }, [id, wallpaperList]);
+    const idx = wallpapers.findIndex((w) => w.id.toString() === id?.toString());
+    return idx >= 0 ? idx : 0;
+  }, [id, wallpapers]);
 
-  const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['55%'], []);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [isUIVisible, setIsUIVisible] = useState(true);
 
-  const openOptions = useCallback(() => {
+  const bottomSheetRef = useRef<BottomSheet | null>(null);
+  const currentItem = wallpapers[currentIndex];
+  const isFav = favorites?.includes(currentItem?.id);
+
+  const { toast, showToast } = useToast();
+  const { saveToGallery, isProcessing: isSaving } = useSaveToGallery({
+    onSuccess: showToast,
+  });
+  const {
+    setWallpaper,
+    isProcessing: isSettingWallpaper,
+    processingLabel,
+  } = useSetWallpaper({
+    onSuccess: showToast,
+    onFallbackSave: () => saveToGallery(currentItem?.url),
+  });
+  const { shareWallpaper } = useShareWallpaper();
+  const isProcessing = isSaving || isSettingWallpaper;
+
+  useEffect(() => {
+    [1, 2, 3].forEach((offset) => {
+      const next = wallpapers[currentIndex + offset];
+      if (next?.url) Image.prefetch(next.url);
+    });
+  }, [currentIndex, wallpapers]);
+
+  const handleToggleUI = useCallback(() => {
+    if (isSheetOpen) {
+      bottomSheetRef.current?.close();
+      setIsSheetOpen(false);
+    } else {
+      setIsUIVisible((prev) => !prev);
+    }
+  }, [isSheetOpen]);
+
+  const openSheet = useCallback(() => {
     bottomSheetRef.current?.expand();
+    setIsSheetOpen(true);
+    setIsUIVisible(true);
   }, []);
 
+  if (!currentItem) {
+    return (
+      <View style={[styles.container, { justifyContent: "center" }]}>
+        <ActivityIndicator size="large" color="#818cf8" />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      {/* 2. PagerView now loops through all fetched images for swiping */}
-      <PagerView 
-        style={styles.pagerView} 
-        initialPage={initialIndex >= 0 ? initialIndex : 0}
-      >
-        {wallpaperList.map((item) => (
-          <View key={item.id} style={styles.page}>
-            <Pressable style={styles.page} onPress={openOptions}>
-              <Image 
-                source={{ uri: item.url }} 
-                style={styles.fullImage} 
-                contentFit="cover" 
-                transition={800}
-              />
-            </Pressable>
-          </View>
-        ))}
-      </PagerView>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        <PagerView
+          style={styles.pagerView}
+          initialPage={initialIndex}
+          onPageSelected={(e) => setCurrentIndex(e.nativeEvent.position)}
+          offscreenPageLimit={2}
+        >
+          {wallpapers.map((item) => (
+            <View key={item.id} style={styles.page}>
+              <Pressable style={styles.page} onPress={handleToggleUI}>
+                <Image
+                  source={{ uri: item.thumbnail ?? item.url }}
+                  contentFit="cover"
+                  style={StyleSheet.absoluteFillObject}
+                  blurRadius={8}
+                  cachePolicy="memory-disk"
+                />
+                <Image
+                  source={{ uri: item.url }}
+                  contentFit="cover"
+                  transition={{ duration: 300, effect: "cross-dissolve" }}
+                  cachePolicy="memory-disk"
+                  style={StyleSheet.absoluteFillObject}
+                />
+              </Pressable>
+            </View>
+          ))}
+        </PagerView>
 
-      {/* Top Navigation */}
-      <View style={styles.topNav}>
-        <TouchableOpacity style={styles.iconCircle} onPress={() => router.back()}>
-          <ArrowLeft color="#fff" size={24} />
-        </TouchableOpacity>
-        <View style={styles.creatorInfo}>
-          <Text style={styles.creatorName}>Premium Artist</Text>
-          <Text style={styles.aiTag}>4K Extraordinary Quality</Text>
-        </View>
+        <View style={styles.gradientTop} pointerEvents="none" />
+        <View style={styles.gradientBottom} pointerEvents="none" />
+
+        <ProgressOverlay visible={isProcessing} label={processingLabel} />
+        <Toast
+          message={toast.message}
+          visible={!!toast.message}
+          key={toast.key}
+        />
+
+        {isUIVisible && (
+          <TopNav
+            photographer={currentItem.photographer}
+            alt={currentItem.alt}
+            isFavorite={!!isFav}
+            onBack={() => router.back()}
+            onToggleFavorite={() => {
+              toggleFavorite(currentItem);
+              showToast(
+                isFav ? "Removed from favorites" : "Added to favorites ❤️",
+              );
+            }}
+          />
+        )}
+
+        {isUIVisible && !isSheetOpen && (
+          <DotIndicator total={wallpapers.length} currentIndex={currentIndex} />
+        )}
+
+        {isUIVisible && !isSheetOpen && (
+          <ActionRow
+            onShare={() => shareWallpaper(currentItem.url)}
+            onApply={openSheet}
+            onSave={() =>
+              saveToGallery(currentItem.downloadUrl ?? currentItem.url)
+            }
+          />
+        )}
+
+        <WallpaperBottomSheet
+          bottomSheetRef={bottomSheetRef}
+          onSetHome={() => setWallpaper(currentItem.url, "home")}
+          onSetLock={() => setWallpaper(currentItem.url, "lock")}
+          onSetBoth={() => setWallpaper(currentItem.url, "both")}
+          onSaveToGallery={() =>
+            saveToGallery(currentItem.downloadUrl ?? currentItem.url)
+          }
+          onShare={() => shareWallpaper(currentItem.url)}
+          onClose={() => setIsSheetOpen(false)}
+        />
       </View>
-
-      {/* Action Row */}
-      <View style={styles.actionRow}>
-        <TouchableOpacity style={styles.subAction} activeOpacity={0.7}>
-          <Share2 color="#fff" size={26} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.mainDownload} onPress={openOptions}>
-          <Download color="#fff" size={32} />
-        </TouchableOpacity>
-        
-        <TouchableOpacity style={styles.subAction} activeOpacity={0.7}>
-          <Heart color="#fff" size={26} />
-        </TouchableOpacity>
-      </View>
-
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={-1}
-        snapPoints={snapPoints}
-        enablePanDownToClose
-        backgroundStyle={{ backgroundColor: '#121212' }}
-        handleIndicatorStyle={{ backgroundColor: '#444' }}
-      >
-        <View style={styles.sheetContent}>
-          <Text style={styles.sheetTitle}>What Would You Like to Do?</Text>
-          <OptionItem icon={<Box color="#fff" size={24}/>} label="Make 3D Parallax" />
-          <OptionItem icon={<ImageIcon color="#fff" size={24}/>} label="Set Wallpaper" />
-          <OptionItem icon={<Lock color="#fff" size={24}/>} label="Set Lock Screen" />
-          <OptionItem icon={<Copy color="#fff" size={24}/>} label="Set Both" />
-          <OptionItem icon={<Save color="#fff" size={24}/>} label="Save to Media Folder" last />
-        </View>
-      </BottomSheet>
-    </View>
+    </GestureHandlerRootView>
   );
 }
 
-const OptionItem = ({ icon, label, last }: any) => (
-  <TouchableOpacity style={[styles.optionItem, last && { borderBottomWidth: 0 }]} activeOpacity={0.6}>
-    <View style={styles.optionLeft}>
-      {icon}
-      <Text style={styles.optionText}>{label}</Text>
-    </View>
-  </TouchableOpacity>
-);
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: "#000" },
   pagerView: { flex: 1 },
-  page: { width, flex: 1 },
-  fullImage: { width: '100%', height: '100%' },
-  topNav: { position: 'absolute', top: 50, left: 20, right: 20, flexDirection: 'row', alignItems: 'center', zIndex: 10 },
-  iconCircle: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 10, borderRadius: 30 },
-  creatorInfo: { marginLeft: 15 },
-  creatorName: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-  aiTag: { color: '#ccc', fontSize: 12 },
-  actionRow: { position: 'absolute', bottom: 40, width: '100%', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 50, zIndex: 10 },
-  mainDownload: { backgroundColor: '#6366f1', width: 75, height: 75, borderRadius: 40, justifyContent: 'center', alignItems: 'center', elevation: 12, shadowColor: '#6366f1', shadowOpacity: 0.5, shadowRadius: 10 },
-  subAction: { padding: 10 },
-  sheetContent: { paddingHorizontal: 20, paddingBottom: 20 },
-  sheetTitle: { color: '#fff', fontSize: 18, fontWeight: '700', textAlign: 'center', marginVertical: 20 },
-  optionItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 20, borderBottomWidth: 1, borderBottomColor: '#222' },
-  optionLeft: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-  optionText: { color: '#fff', fontSize: 17, fontWeight: '500' }
+  page: { width, height },
+  gradientTop: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 180,
+    opacity: 0.9,
+  },
+  gradientBottom: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 160,
+    opacity: 0.9,
+  },
+  fullImage: { width: "100%", height: "100%", position: "absolute" },
 });

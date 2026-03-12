@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "MyWallpaperApp",
+    "name": "JisanWallpaper",
     "slug": "MyWallpaperApp",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -13,13 +13,24 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#f89924",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": ["android.permission.READ_MEDIA_AUDIO"],
+      "permissions": [
+        "android.permission.SET_WALLPAPER",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO"
+      ],
+      "package": "com.anonymous.MyWallpaperApp"
     },
     "web": {
       "output": "static",
@@ -38,11 +49,25 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow JisanWallpaper to access your photos.",
+          "savePhotosPermission": "Allow JisanWallpaper to save wallpapers to your gallery.",
+          "isAccessMediaLocationEnabled": true
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "1cd82997-6162-466a-8160-ba1fd355c3dd"
+      }
     }
   }
 }

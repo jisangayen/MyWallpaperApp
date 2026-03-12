@@ -1,50 +1,132 @@
-import React from 'react';
-import { FlatList, Text, TouchableOpacity, StyleSheet, View, ImageBackground } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
+import React from "react";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 
-// 1. High-quality background images for each genre
 const GENRES = [
-  { id: '1', name: 'Amoled', query: 'dark amoled 4k', img: 'https://images.pexels.com/photos/1749303/pexels-photo-1749303.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '2', name: 'Cyberpunk', query: 'cyberpunk neon 4k', img: 'https://images.pexels.com/photos/1632790/pexels-photo-1632790.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '3', name: 'Minimal', query: 'minimalist 4k', img: 'https://images.pexels.com/photos/3573382/pexels-photo-3573382.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '4', name: 'Nature', query: 'nature 8k', img: 'https://images.pexels.com/photos/15286/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '5', name: 'Anime', query: 'anime art 4k', img: 'https://images.pexels.com/photos/13554030/pexels-photo-13554030.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '6', name: 'Abstract', query: 'abstract art 4k', img: 'https://images.pexels.com/photos/2693212/pexels-photo-2693212.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '7', name: 'Cars', query: 'supercars 4k', img: 'https://images.pexels.com/photos/3311574/pexels-photo-3311574.jpeg?auto=compress&cs=tinysrgb&w=400' },
-  { id: '8', name: 'Space', query: 'galaxy 4k', img: 'https://images.pexels.com/photos/41951/stellar-nebula-cygnus-wall-41951.jpeg?auto=compress&cs=tinysrgb&w=400' },
+  {
+    id: "1",
+    name: "Amoled",
+    query: "dark amoled",
+    accent: "#7c3aed",
+    img: "https://images.pexels.com/photos/1749303/pexels-photo-1749303.jpeg?auto=compress&cs=tinysrgb&w=400",
+  },
+  {
+    id: "2",
+    name: "Cyber",
+    query: "cyberpunk",
+    accent: "#06b6d4",
+    img: "https://images.pexels.com/photos/1632790/pexels-photo-1632790.jpeg?auto=compress&cs=tinysrgb&w=400",
+  },
+  {
+    id: "3",
+    name: "Minimal",
+    query: "minimalist",
+    accent: "#e2e8f0",
+    img: "https://images.pexels.com/photos/3573382/pexels-photo-3573382.jpeg?auto=compress&cs=tinysrgb&w=400",
+  },
+  {
+    id: "4",
+    name: "Nature",
+    query: "nature",
+    accent: "#22c55e",
+    img: "https://images.pexels.com/photos/15286/pexels-photo.jpg?auto=compress&cs=tinysrgb&w=400",
+  },
+  {
+    id: "5",
+    name: "Anime",
+    query: "anime art",
+    accent: "#f472b6",
+    img: "https://images.pexels.com/photos/13554030/pexels-photo-13554030.jpeg?auto=compress&cs=tinysrgb&w=400",
+  },
+  {
+    id: "6",
+    name: "Space",
+    query: "galaxy space",
+    accent: "#818cf8",
+    img: "https://images.pexels.com/photos/1169754/pexels-photo-1169754.jpeg?auto=compress&cs=tinysrgb&w=400",
+  },
+  {
+    id: "7",
+    name: "Cars",
+    query: "supercar",
+    accent: "#fb923c",
+    img: "https://images.pexels.com/photos/3729464/pexels-photo-3729464.jpeg?auto=compress&cs=tinysrgb&w=400",
+  },
 ];
 
-export const GenreSlider = ({ onSelectGenre }: { onSelectGenre: (query: string) => void }) => {
+const GenreCard = ({
+  item,
+  onPress,
+}: {
+  item: (typeof GENRES)[0];
+  onPress: () => void;
+}) => {
+  const scale = useSharedValue(1);
+  const animStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
   return (
-    <View style={styles.section}>
-      <Text style={styles.sectionTitle}>Featured Genres</Text>
+    <Pressable
+      onPress={onPress}
+      onPressIn={() => (scale.value = withSpring(0.93))}
+      onPressOut={() => (scale.value = withSpring(1))}
+    >
+      <Animated.View style={[styles.card, animStyle]}>
+        <Image
+          source={{ uri: item.img }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={200}
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.75)"]}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.cardBottom}>
+          <View style={[styles.dot, { backgroundColor: item.accent }]} />
+          <Text style={styles.cardName}>{item.name}</Text>
+        </View>
+      </Animated.View>
+    </Pressable>
+  );
+};
+
+export const GenreSlider = ({
+  onSelectGenre,
+}: {
+  onSelectGenre?: (query: string) => void;
+}) => {
+  const router = useRouter();
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Genres</Text>
       <FlatList
         horizontal
-        showsHorizontalScrollIndicator={false}
         data={GENRES}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.list}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.container}
         renderItem={({ item }) => (
-          <TouchableOpacity 
-            activeOpacity={0.9} 
-            onPress={() => onSelectGenre(item.query)}
-            style={styles.cardWrapper}
-          >
-            {/* 2. Using ImageBackground for the immersive "Amoled" look */}
-            <ImageBackground 
-              source={{ uri: item.img }} 
-              style={styles.cardImage}
-              imageStyle={{ borderRadius: 16 }}
-            >
-              {/* 3. Dark Gradient Overlay ensures text is visible on any image */}
-              <LinearGradient
-                colors={['transparent', 'rgba(0,0,0,0.85)']}
-                style={styles.gradient}
-              >
-                <Text style={styles.text}>{item.name}</Text>
-              </LinearGradient>
-            </ImageBackground>
-          </TouchableOpacity>
+          <GenreCard
+            item={item}
+            onPress={() =>
+              onSelectGenre
+                ? onSelectGenre(item.query)
+                : router.push({
+                    pathname: "/category/[query]",
+                    params: { query: item.query, name: item.name },
+                  })
+            }
+          />
         )}
       />
     </View>
@@ -52,47 +134,43 @@ export const GenreSlider = ({ onSelectGenre }: { onSelectGenre: (query: string) 
 };
 
 const styles = StyleSheet.create({
-  section: { marginVertical: 10 },
-  sectionTitle: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '800',
-    marginLeft: 20,
-    marginBottom: 12,
-    letterSpacing: 0.5,
+  container: {
+    marginVertical: 10,
   },
-  container: { 
-    paddingLeft: 20, 
-    paddingRight: 10,
+  title: {
+    color: "#f1f5f9",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: -0.3,
+    paddingHorizontal: 16,
+    marginBottom: 10,
   },
-  cardWrapper: {
-    width: 140,
-    height: 85,
-    marginRight: 12,
-    borderRadius: 16,
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
+  list: {
+    paddingHorizontal: 14,
+    gap: 8,
   },
-  cardImage: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'flex-end',
+  card: {
+    width: 90,
+    height: 120,
+    borderRadius: 10,
+    overflow: "hidden",
+    backgroundColor: "#0f172a",
+    justifyContent: "flex-end",
   },
-  gradient: {
-    height: '100%',
-    width: '100%',
-    borderRadius: 16,
-    justifyContent: 'flex-end',
-    padding: 10,
+  cardBottom: {
+    padding: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
   },
-  text: { 
-    color: '#fff', 
-    fontSize: 16, 
-    fontWeight: '700', 
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: -1, height: 1 },
-    textShadowRadius: 10
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  cardName: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });
